@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Travel Story Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #6c63ff;
+    --accent2: #ff6584;
+    --green: #43e97b;
+    --text: #e8eaf6;
+    --muted: #7b82a8;
+    --shadow: rgba(0,0,0,0.45);
+    --radius: 14px;
+  }
+
+  body.light {
+    --bg: #f0f2ff;
+    --surface: #ffffff;
+    --surface2: #eef0ff;
+    --border: #d4d8f5;
+    --accent: #6c63ff;
+    --accent2: #ff6584;
+    --green: #1db954;
+    --text: #1a1b2e;
+    --muted: #6b6f9a;
+    --shadow: rgba(108,99,255,0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    height: -webkit-fill-available;
+  }
+
+  body {
+    background: var(--bg);
+    font-family: 'Nunito', sans-serif;
+    height: 100vh;
+    height: calc(var(--vh, 1vh) * 100);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--text);
+    position: fixed;
+    width: 100%;
+    top: 0;
+    left: 0;
+  }
+
+  header {
+    background: var(--surface);
+    color: var(--text);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 1000;
+  }
+
+  header h1 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  header h1 span {
+    color: var(--accent);
+  }
+
+  header .subtitle {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  header .spacer { flex: 1; }
+
+  #toggle-sidebar-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  #toggle-sidebar-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  #theme-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 6px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  #theme-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  #header-play-btn {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: #fff;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  #header-play-btn:hover { background: #574fd6; border-color: #574fd6; }
+
+  #map-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #map {
+    width: 100%;
+    height: 100%;
+    background: #1a2030;
+    touch-action: none;
+  }
+
+  /* Sidebar */
+  #sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 280px;
+    height: 100%;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: -8px 0 32px var(--shadow);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  #sidebar.collapsed {
+    transform: translateX(282px);
+  }
+
+  /* On mobile, make the whole sidebar body one scrollable column */
+  #sidebar-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  @media (max-width: 600px) {
+    #sidebar-main {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #trip-list {
+      flex: none !important;
+      overflow-y: visible !important;
+    }
+    #controls {
+      flex-shrink: 0;
+    }
+  }
+
+  /* Progress bar adjusts when sidebar collapses */
+  #progress-bar {
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  #sidebar-header {
+    padding: 16px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+
+  #trip-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px 0;
+  }
+
+  #trip-list::-webkit-scrollbar { width: 4px; }
+  #trip-list::-webkit-scrollbar-track { background: transparent; }
+  #trip-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .trip-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+    position: relative;
+  }
+
+  .trip-item:hover { background: var(--surface2); }
+  .trip-item.active {
+    background: var(--surface2);
+    border-left-color: var(--accent);
+  }
+
+  .trip-item .trip-name {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .trip-item .trip-meta {
+    font-size: 0.68rem;
+    color: var(--muted);
+    margin-top: 2px;
+    font-weight: 600;
+  }
+
+  .trip-item .trip-icon {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.1rem;
+    opacity: 0.7;
+  }
+
+  .trip-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 2px 16px;
+  }
+
+  /* Controls */
+  #controls {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn.primary:hover { background: #574fd6; border-color: #574fd6; }
+
+  /* Info card */
+  #info-card {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    max-width: 280px;
+    z-index: 400;
+    box-shadow: 0 8px 32px var(--shadow);
+    display: none;
+    animation: slideUp 0.3s ease;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  #info-card .from-to {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  #info-card .info-meta {
+    font-size: 0.68rem;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  #info-card .info-desc {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.6;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+  }
+
+  /* Progress bar */
+  #progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 280px;
+    height: 3px;
+    background: var(--border);
+    z-index: 400;
+  }
+
+  #progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    width: 0%;
+    transition: width 0.1s linear;
+    border-radius: 0 2px 2px 0;
+  }
+
+  /* Fixed centre transport icon */
+  #centre-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 56px;
+    height: 56px;
+    z-index: 450;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+  }
+
+  #centre-icon img {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Crosshair ring around centre icon */
+  #centre-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 48px;
+    height: 48px;
+    border: 2px solid rgba(108,99,255,0.5);
+    border-radius: 50%;
+    z-index: 449;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    box-shadow: 0 0 0 4px rgba(108,99,255,0.12);
+  }
+
+  #centre-ring.visible, #centre-icon.visible {
+    opacity: 1;
+  }
+
+  /* Waypoint dots */
+  .waypoint-dot {
+    width: 10px; height: 10px;
+    background: var(--accent);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(108,99,255,0.3);
+  }
+  .waypoint-dot.start { background: var(--green); box-shadow: 0 0 0 3px rgba(67,233,123,0.3); }
+  .waypoint-dot.end { background: var(--accent2); box-shadow: 0 0 0 3px rgba(255,101,132,0.3); }
+
+  /* Speed control */
+  #speed-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  #speed-row input { flex: 1; accent-color: var(--accent); }
+
+  /* Add trip form — replaces trip list + controls in the flow */
+  #sidebar-body {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  #sidebar-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  #sidebar-body.adding #sidebar-main { display: none; }
+  #sidebar-body.adding #add-form    { display: flex; }
+
+  #add-form {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px;
+  }
+  #add-form h3 {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  #add-form label { font-size: 0.68rem; color: var(--muted); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
+  #add-form input, #add-form select, #add-form textarea {
+    width: 100%; padding: 8px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    border-radius: 8px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    outline: none;
+  }
+  #add-form input:focus, #add-form select:focus, #add-form textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(108,99,255,0.15);
+  }
+  #add-form select option { background: var(--surface2); }
+  #add-form textarea { resize: vertical; min-height: 60px; }
+
+  .field-group { display: flex; flex-direction: column; }
+  .hint { font-size: 0.62rem; color: var(--muted); margin-top: 3px; }
+  .hint.ok { color: var(--green); font-weight: 700; }
+  .hint.err { color: var(--accent2); font-weight: 700; }
+
+  .location-wrap {
+    position: relative;
+  }
+
+  .geo-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    z-index: 20;
+    max-height: 180px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: 0 6px 20px var(--shadow);
+  }
+
+  .geo-dropdown.open { display: block; }
+
+  .geo-option {
+    padding: 9px 12px;
+    font-size: 0.78rem;
+    color: var(--text);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.35;
+  }
+  .geo-option:last-child { border-bottom: none; }
+  .geo-option:hover, .geo-option:active { background: var(--surface2); }
+  .geo-option .geo-main { font-weight: 700; }
+  .geo-option .geo-sub { font-size: 0.68rem; color: var(--muted); margin-top: 1px; }
+
+  .geo-loading {
+    padding: 10px 12px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* Legend */
+  .map-legend {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.65rem;
+    color: var(--muted);
+    font-weight: 600;
+    z-index: 300;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>My <span>Travels</span></h1>
+  <span class="subtitle">An animated journey log</span>
+  <div class="spacer"></div>
+  <button id="header-play-btn" title="Play all trips">▶</button>
+  <button id="theme-btn" title="Toggle light/dark">🌙</button>
+  <button id="toggle-sidebar-btn" title="Toggle journey log">☰ Log</button>
+</header>
+
+<div id="map-container">
+  <div id="map"></div>
+  <div id="centre-ring"></div>
+  <div id="centre-icon"></div>
+
+  <div id="sidebar">
+    <div id="sidebar-header">Journey Log</div>
+    <div id="sidebar-body">
+      <div id="sidebar-main">
+        <div id="trip-list"></div>
+        <div id="controls">
+          <div id="speed-row">
+            <span>Speed</span>
+            <input type="range" id="speed" min="0.5" max="5" step="0.5" value="2">
+            <span id="speed-val">2×</span>
+          </div>
+          <button class="btn primary" id="play-all-btn">▶ Play All Trips</button>
+          <button class="btn" id="add-trip-btn">+ Add Trip</button>
+          <div style="display:flex;gap:6px;">
+            <button class="btn" id="export-btn" style="flex:1">↓ Export CSV</button>
+            <button class="btn" id="import-btn" style="flex:1">↑ Import CSV</button>
+            <input type="file" id="import-file" accept=".csv" style="display:none">
+          </div>
+        </div>
+      </div>
+      <div id="add-form">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+          <h3>Add a Trip Leg</h3>
+          <button class="btn" id="cancel-add-btn" style="padding:5px 12px;">✕ Cancel</button>
+        </div>
+        <div class="field-group">
+          <label>Trip Name</label>
+          <input type="text" id="f-name" placeholder="e.g. Paris to Rome">
+        </div>
+        <div class="field-group">
+          <label>From</label>
+          <div class="location-wrap" id="from-wrap">
+            <input type="text" id="f-from" placeholder="Search city or place…" autocomplete="off">
+            <div class="geo-dropdown" id="from-dropdown"></div>
+          </div>
+          <span class="hint" id="from-resolved"></span>
+        </div>
+        <div class="field-group">
+          <label>To</label>
+          <div class="location-wrap" id="to-wrap">
+            <input type="text" id="f-to" placeholder="Search city or place…" autocomplete="off">
+            <div class="geo-dropdown" id="to-dropdown"></div>
+          </div>
+          <span class="hint" id="to-resolved"></span>
+        </div>
+        <div class="field-group">
+          <label>Transport</label>
+          <select id="f-transport">
+            <option value="plane">Plane</option>
+            <option value="train">Train</option>
+            <option value="bus">Bus</option>
+            <option value="car">Car</option>
+            <option value="minivan">Minivan</option>
+            <option value="motorbike">Motorbike</option>
+            <option value="ferry">Ferry</option>
+            <option value="bike">Bike</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Date</label>
+          <input type="text" id="f-date" placeholder="e.g. March 2024">
+        </div>
+        <div class="field-group">
+          <label>Notes</label>
+          <textarea id="f-notes" placeholder="Any memorable details about this journey..."></textarea>
+        </div>
+        <button class="btn primary" id="save-trip-btn">Save Trip</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="info-card">
+    <div class="from-to" id="ic-fromto"></div>
+    <div class="info-meta" id="ic-meta"></div>
+    <div class="info-desc" id="ic-desc"></div>
+  </div>
+
+  <div id="progress-bar"><div id="progress-fill"></div></div>
+
+  <div class="map-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#43e97b"></div> Origin</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#6c63ff"></div> Waypoint</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6584"></div> Destination</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ─── iOS VIEWPORT FIX ────────────────────────────────────────────────────────
+function setVH() {
+  document.documentElement.style.setProperty('--vh', window.innerHeight * 0.01 + 'px');
+}
+setVH();
+window.addEventListener('resize', setVH);
+window.addEventListener('orientationchange', () => setTimeout(setVH, 200));
+// ─── DATA ────────────────────────────────────────────────────────────────────
+// Edit this array to customize your trips!
+let TRIPS = [
+  {
+    name: "New York to London",
+    from: "New York, USA", to: "London, UK",
+    fromCoords: [40.7128, -74.0060], toCoords: [51.5074, -0.1278],
+    transport: "plane", date: "Jan 2024",
+    notes: "Transatlantic flight, 7 hours over the Atlantic.",
+    type: "intercontinental"
+  },
+  {
+    name: "London to Paris",
+    from: "London, UK", to: "Paris, France",
+    fromCoords: [51.5074, -0.1278], toCoords: [48.8566, 2.3522],
+    transport: "train", date: "Jan 2024",
+    notes: "Eurostar through the Channel Tunnel — 2h15m of pure magic.",
+    type: "international"
+  },
+  {
+    name: "Paris to Lyon",
+    from: "Paris, France", to: "Lyon, France",
+    fromCoords: [48.8566, 2.3522], toCoords: [45.7640, 4.8357],
+    transport: "train", date: "Feb 2024",
+    notes: "TGV high-speed train, 2 hours through Burgundy countryside.",
+    type: "domestic"
+  },
+  {
+    name: "Lyon to Nice",
+    from: "Lyon, France", to: "Nice, France",
+    fromCoords: [45.7640, 4.8357], toCoords: [43.7102, 7.2620],
+    transport: "bus", date: "Feb 2024",
+    notes: "Scenic bus through the Alps and along the Riviera coast.",
+    type: "domestic"
+  },
+  {
+    name: "Nice to Rome",
+    from: "Nice, France", to: "Rome, Italy",
+    fromCoords: [43.7102, 7.2620], toCoords: [41.9028, 12.4964],
+    transport: "plane", date: "Mar 2024",
+    notes: "Short hop over the Med — easier than the train this time.",
+    type: "international"
+  }
+];
+
+// ─── ZOOM LEVELS ─────────────────────────────────────────────────────────────
+function getZoomForType(type) {
+  if (type === "intercontinental") return 3;
+  if (type === "international") return 5;
+  if (type === "domestic") return 7;
+  if (type === "regional") return 9;
+  if (type === "local") return 12;
+  return 6;
+}
+
+function classifyTrip(fromCoords, toCoords) {
+  var dist = Math.sqrt(
+    Math.pow(fromCoords[0]-toCoords[0],2) +
+    Math.pow(fromCoords[1]-toCoords[1],2)
+  );
+  if (dist > 40)  return "intercontinental";
+  if (dist > 8)   return "international";
+  if (dist > 2)   return "domestic";
+  if (dist > 0.5) return "regional";
+  return "local";
+}
+
+// ─── MAP SETUP ────────────────────────────────────────────────────────────────
+const map = L.map('map', {
+  zoomControl: false,
+  attributionControl: false
+}).setView([30, 10], 3);
+
+L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
+
+// ─── MAP INTERACTION LOCK ─────────────────────────────────────────────────────
+function lockMap() {
+  map.dragging.disable();
+  map.touchZoom.disable();
+  map.doubleClickZoom.disable();
+  map.scrollWheelZoom.disable();
+  map.boxZoom.disable();
+  map.keyboard.disable();
+  if (map.tap) map.tap.disable();
+}
+
+function unlockMap() {
+  map.dragging.enable();
+  map.touchZoom.enable();
+  map.doubleClickZoom.enable();
+  map.scrollWheelZoom.enable();
+  map.boxZoom.enable();
+  map.keyboard.enable();
+  if (map.tap) map.tap.enable();
+}
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let animFrame = null;
+let isPlaying = false;
+let currentTripIdx = 0;
+let pathLayer = null;
+let iconMarker = null;
+let waypointMarkers = [];
+let drawnPaths = [];
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+function renderTripList() {
+  const list = document.getElementById('trip-list');
+  list.innerHTML = '';
+  TRIPS.forEach((trip, i) => {
+    const item = document.createElement('div');
+    item.className = 'trip-item';
+    item.dataset.idx = i;
+    item.innerHTML = '<div class="trip-name">' + trip.name + '</div>' +
+      '<div class="trip-meta">' + trip.date + ' · ' + (trip.type || classifyTrip(trip.fromCoords, trip.toCoords)) + '</div>' +
+      '<div class="trip-icon"><img src="' + transportIcon(trip.transport) + '" style="width:22px;height:22px;vertical-align:middle;"></div>';
+    item.addEventListener('click', function() { lockMap(); playTrip(i); });
+    list.appendChild(item);
+    if (i < TRIPS.length-1) {
+      const div = document.createElement('div');
+      div.className = 'trip-divider';
+      list.appendChild(div);
+    }
+  });
+}
+
+function setActiveTrip(idx) {
+  document.querySelectorAll('.trip-item').forEach(el => el.classList.remove('active'));
+  const el = document.querySelector(`.trip-item[data-idx="${idx}"]`);
+  if (el) el.classList.add('active');
+}
+
+// ─── GREAT CIRCLE PATH ────────────────────────────────────────────────────────
+function interpolateGreatCircle(from, to, steps) {
+  const pts = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    // Simple interpolation with a slight arc for visual interest
+    const lat = from[0] + (to[0] - from[0]) * t;
+    const lng = from[1] + (to[1] - from[1]) * t;
+    // Add arc
+    const arc = Math.sin(Math.PI * t) * Math.min(
+      Math.abs(to[0]-from[0]) + Math.abs(to[1]-from[1]),
+      15
+    ) * 0.3;
+    pts.push([lat + arc * 0.1, lng]);
+  }
+  return pts;
+}
+
+// ─── ANIMATION ────────────────────────────────────────────────────────────────
+function clearAnimation() {
+  if (animFrame) { clearTimeout(animFrame); animFrame = null; }
+  if (pathLayer) { map.removeLayer(pathLayer); pathLayer = null; }
+  waypointMarkers.forEach(m => map.removeLayer(m));
+  waypointMarkers = [];
+}
+
+function addWaypointMarker(coords, type) {
+  const div = document.createElement('div');
+  div.className = `waypoint-dot ${type}`;
+  const m = L.marker(coords, {
+    icon: L.divIcon({ className: '', html: div.outerHTML, iconSize: [10,10], iconAnchor: [5,5] }),
+    zIndexOffset: 100
+  }).addTo(map);
+  waypointMarkers.push(m);
+  return m;
+}
+
+function playTrip(idx, onDone) {
+  if (isPlaying) { stopAnimation(); }
+  if (idx >= TRIPS.length) {
+    isPlaying = false;
+    document.getElementById('play-all-btn').textContent = '▶ Play All Trips';
+    return;
+  }
+
+  const trip = TRIPS[idx];
+  currentTripIdx = idx;
+  setActiveTrip(idx);
+
+  const type = trip.type || classifyTrip(trip.fromCoords, trip.toCoords);
+  const zoom = getZoomForType(type);
+
+  // Show info card
+  document.getElementById('ic-fromto').textContent = `${trip.from} → ${trip.to}`;
+  document.getElementById('ic-meta').textContent = transportLabel(trip.transport) + ' · ' + trip.date + ' · ' + type;
+  document.getElementById('ic-desc').textContent = trip.notes || '';
+  document.getElementById('info-card').style.display = 'block';
+
+  // Update fixed centre icon
+  setCentreIcon(trip.transport);
+
+  // Decide mirror direction once for the whole trip based on overall longitude delta
+  var currentGoingEast = (trip.toCoords[1] > trip.fromCoords[1]);
+
+  // Pre-compute initial transform from overall trip bearing so icon appears already oriented
+  var initDy = trip.toCoords[0] - trip.fromCoords[0];
+  var initDx = trip.toCoords[1] - trip.fromCoords[1];
+  var initBearing = Math.atan2(initDx, initDy) * 180 / Math.PI;
+  var initTransform;
+  if (!currentMirror) {
+    initTransform = 'translate(-50%, -50%) rotate(' + (initBearing - 45) + 'deg)';
+  } else if (currentNaturallyEast) {
+    if (currentGoingEast) {
+      initTransform = 'translate(-50%, -50%) rotate(' + (initBearing - 90) + 'deg)';
+    } else {
+      var initR = (initDy >= 0) ? (initBearing - 90) : (90 - initBearing);
+      initTransform = 'translate(-50%, -50%) rotate(' + initR + 'deg) scaleX(-1)';
+    }
+  } else if (!currentGoingEast) {
+    initTransform = 'translate(-50%, -50%) rotate(' + (initBearing + 90) + 'deg)';
+  } else {
+    var initReflected = (initDy >= 0) ? (90 - initBearing) : (initBearing - 90);
+    initTransform = 'translate(-50%, -50%) rotate(' + initReflected + 'deg) scaleX(-1)';
+  }
+  centreIcon.style.transform = initTransform;
+  showCentreIcon(true);
+
+  var speed = parseFloat(document.getElementById('speed').value);
+
+  // Fixed trip duration regardless of distance: 3s at 1x, 0.6s at 5x
+  var tripMs = Math.round(3000 / speed);
+  var steps = 120;
+  var totalInterval = tripMs; // spread evenly across steps
+
+  // flyTo fast and consistent — 0.4s at 1x, snappy at higher speeds
+  var flyDuration = Math.max(0.15, 0.4 / (speed / 2));
+  var pauseMs = Math.round(flyDuration * 1000) + 50;
+
+  // Fly map to start of route first
+  map.flyTo(trip.fromCoords, zoom, { duration: flyDuration, easeLinearity: 0.6 });
+
+  setTimeout(function() {
+    clearAnimation();
+
+    var pts = interpolateGreatCircle(trip.fromCoords, trip.toCoords, steps);
+
+    // Draw full dashed guide path
+    pathLayer = L.polyline(pts, {
+      color: '#6c63ff', weight: 1.5, opacity: 0.2,
+      dashArray: '4, 6'
+    }).addTo(map);
+
+    // Waypoints
+    addWaypointMarker(trip.fromCoords, 'start');
+    addWaypointMarker(trip.toCoords, 'end');
+
+    // Animated trail path
+    var fillPath = L.polyline([pts[0]], {
+      color: '#6c63ff', weight: 2.5, opacity: 0.9
+    }).addTo(map);
+    drawnPaths.push(fillPath);
+
+    // Consistent frame budget: how many ms per step
+    var msPerStep = Math.max(16, Math.round(totalInterval / steps));
+    // At very high speeds msPerStep hits 16ms floor, so skip extra steps per frame
+    var skipSteps = Math.max(1, Math.round(16 / msPerStep));
+    var interval = Math.max(16, msPerStep * skipSteps);
+    var step = 0;
+    document.getElementById('progress-fill').style.width = '0%';
+
+    function animate() {
+      if (step >= steps) {
+        document.getElementById('progress-fill').style.width = '100%';
+        if (onDone) {
+          onDone();
+        } else {
+          // Single trip played — unlock map
+          unlockMap();
+          showCentreIcon(false);
+        }
+        return;
+      }
+      // Advance multiple steps per frame at higher speeds
+      for (var s = 0; s < skipSteps && step < steps; s++) {
+        step++;
+        fillPath.addLatLng(pts[step]);
+      }
+      document.getElementById('progress-fill').style.width = (step / steps * 100) + '%';
+      map.panTo(pts[step], { animate: false });
+
+      // Rotate icon to face direction of travel
+      if (step < steps - 1) {
+        var dy = pts[step+1][0] - pts[step][0]; // latitude delta, north positive
+        var dx = pts[step+1][1] - pts[step][1]; // longitude delta, east positive
+        // bearing: 0=north, 90=east, 180/-180=south, -90=west
+        var bearing = Math.atan2(dx, dy) * 180 / Math.PI;
+
+        if (!currentMirror) {
+          // Plane: symmetric. Natural heading NE (45°), offset -45 corrects to north.
+          centreIcon.style.transform =
+            'translate(-50%, -50%) rotate(' + (bearing - 45) + 'deg)';
+        } else if (currentNaturallyEast) {
+          // Naturally east-facing icons (ferry): opposite of west-facing icons.
+          // Going east → no reflection needed.
+          // Going west → reflect with scaleX(-1).
+          if (currentGoingEast) {
+            centreIcon.style.transform =
+              'translate(-50%, -50%) rotate(' + (bearing - 90) + 'deg)';
+          } else {
+            var rAngle = (dy >= 0) ? (bearing - 90) : (90 - bearing);
+            centreIcon.style.transform =
+              'translate(-50%, -50%) rotate(' + rAngle + 'deg) scaleX(-1)';
+          }
+        } else if (!currentGoingEast) {
+          // West-facing icons going east→west: no reflection.
+          centreIcon.style.transform =
+            'translate(-50%, -50%) rotate(' + (bearing + 90) + 'deg)';
+        } else {
+          // West-facing icons going west→east: reflect.
+          var reflectedAngle = (dy >= 0) ? (90 - bearing) : (bearing - 90);
+          centreIcon.style.transform =
+            'translate(-50%, -50%) rotate(' + reflectedAngle + 'deg) scaleX(-1)';
+        }
+      }
+
+      animFrame = setTimeout(animate, interval);
+    }
+
+    animate();
+  }, pauseMs);
+}
+
+function playAllTrips(idx) {
+  if (idx >= TRIPS.length) {
+    setPlayState(false);
+    unlockMap();
+    document.getElementById('info-card').style.display = 'none';
+    document.getElementById('progress-fill').style.width = '0%';
+    showCentreIcon(false);
+    return;
+  }
+  playTrip(idx, function() {
+    var spd = parseFloat(document.getElementById('speed').value);
+    var gap = Math.round(400 / spd);
+    animFrame = setTimeout(function() { playAllTrips(idx + 1); }, gap);
+  });
+}
+
+function stopAnimation() {
+  setPlayState(false);
+  clearAnimation();
+  showCentreIcon(false);
+  unlockMap();
+  document.getElementById('progress-fill').style.width = '0%';
+}
+
+function setPlayState(playing) {
+  isPlaying = playing;
+  document.getElementById('header-play-btn').textContent = playing ? '■' : '▶';
+  document.getElementById('play-all-btn').textContent = playing ? '■ Stop' : '▶ Play All Trips';
+}
+
+function startPlayAll() {
+  setPlayState(true);
+  lockMap();
+  drawnPaths.forEach(function(p) { map.removeLayer(p); });
+  drawnPaths = [];
+  playAllTrips(0);
+}
+
+document.getElementById('header-play-btn').addEventListener('click', function() {
+  if (isPlaying) { stopAnimation(); } else { startPlayAll(); }
+});
+
+document.getElementById('play-all-btn').addEventListener('click', function() {
+  if (isPlaying) { stopAnimation(); } else { startPlayAll(); }
+});
+
+document.getElementById('speed').addEventListener('input', function() {
+  document.getElementById('speed-val').textContent = this.value + '×';
+});
+
+// ─── TRANSPORT CONFIG ─────────────────────────────────────────────────────────
+// rotationOffset: degrees to add so the icon points "up" (north) at 0° travel angle
+// Plane (2708) naturally points NE = 45°  → offset -45 to normalise to north
+// All others naturally point West = 270°  → offset +90 to normalise to north
+var TRANSPORT = {
+  plane:    { code: '2708',  label: 'Plane',     offset: -45, mirror: false, naturallyEast: false },
+  train:    { code: '1F688', label: 'Train',     offset:   0, mirror: true,  naturallyEast: false },
+  bus:      { code: '1F68C', label: 'Bus',       offset:   0, mirror: true,  naturallyEast: false },
+  car:      { code: '1F697', label: 'Car',       offset:   0, mirror: true,  naturallyEast: false },
+  minivan:  { code: '1F690', label: 'Minivan',   offset:   0, mirror: true,  naturallyEast: false },
+  motorbike:{ code: '1F3CD', label: 'Motorbike', offset:   0, mirror: true,  naturallyEast: false },
+  ferry:    { url: 'data:image/svg+xml,' + encodeURIComponent('<?xml version="1.0" encoding="utf-8"?><svg version="1.1" id="Layer_25" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="64px" height="64px" viewBox="0 0 64 64" enable-background="new 0 0 64 64" xml:space="preserve"><path fill="#00528F" stroke="#3E3A39" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d="M57.951,37.819v-1.518c0.303-0.084,0.531-0.364,0.531-0.713c0-0.414-0.314-0.75-0.703-0.75h-8.906c-0.168,0-0.314,0.071-0.436,0.175c-0.939-2.242-1.88-4.5-1.88-4.5h-1.767c0.611-1.875,1.221-3.769,1.469-4.59c0.316-0.074,0.557-0.36,0.557-0.718c0-0.414-0.314-0.75-0.703-0.75H31.719c-0.389,0-0.704,0.336-0.704,0.75c0,0.142,0.048,0.268,0.112,0.381c-0.046-0.01-0.089-0.03-0.138-0.03h-9.006v-0.881c0-0.414-0.315-0.75-0.704-0.75s-0.704,0.336-0.704,0.75v0.881h-4.19v-2.322c0-0.414-0.315-0.75-0.704-0.75s-0.704,0.336-0.704,0.75v2.322h-3.302c-0.389,0-0.704,0.336-0.704,0.75c0,0.356,0.238,0.641,0.551,0.717l-0.372,3.49H9.162L8.53,34.839H7.086c-0.389,0-0.704,0.336-0.704,0.75c0,0.332,0.206,0.604,0.486,0.703v1.401h-0.2c-0.562,0-1.017,0.379-1.017,0.847v5.776c0,0.109,0.024,0.219,0.076,0.32c2.336,4.749,3.262,4.749,3.818,4.749h39.537c0.163,0,0.325-0.033,0.47-0.097c0.256-0.111,6.296-2.816,8.799-10.582c0.082-0.254,0.015-0.527-0.176-0.734C58.113,37.907,58.029,37.867,57.951,37.819z M50.061,36.339h2.536v1.303l-2.536,0.001V36.339z M8.275,36.583v-0.244h0.036L8.275,36.583z M54.004,37.642v-1.303h2.539v1.302L54.004,37.642z"/><g><g><path fill="#868686" d="M15.681,31.395c-0.389,0-0.704-0.336-0.704-0.75v-7.41c0-0.414,0.315-0.75,0.704-0.75s0.704,0.336,0.704,0.75v7.41C16.385,31.059,16.07,31.395,15.681,31.395z"/></g><g><path fill="#868686" d="M21.279,32.835c-0.389,0-0.704-0.336-0.704-0.75v-7.41c0-0.414,0.315-0.75,0.704-0.75s0.704,0.336,0.704,0.75v7.41C21.982,32.5,21.667,32.835,21.279,32.835z"/></g><g><g><linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="10.8184" y1="30.127" x2="35.1367" y2="30.127"><stop offset="0" style="stop-color:#8B878D"/><stop offset="0.5" style="stop-color:#F3F4F4"/><stop offset="0.5872" style="stop-color:#E5E5E6"/><stop offset="0.7546" style="stop-color:#C0BEC0"/><stop offset="0.9834" style="stop-color:#858085"/><stop offset="1" style="stop-color:#807B80"/></linearGradient><path fill-rule="evenodd" clip-rule="evenodd" fill="url(#SVGID_1_)" d="M35.137,33.633c-0.094-0.244-2.143-7.012-2.143-7.012H11.565l-0.747,7.012H35.137z"/><path fill="#009DE6" d="M17.147,28.054h-3.396c-0.461,0-0.835,0.31-0.835,0.694v1.754c0,0.384,0.374,0.694,0.835,0.694h3.396c0.461,0,0.835-0.311,0.835-0.694v-1.754C17.982,28.364,17.608,28.054,17.147,28.054z"/><path fill="#009DE6" d="M23.12,28.054h-3.397c-0.46,0-0.835,0.31-0.835,0.694v1.754c0,0.384,0.375,0.694,0.835,0.694h3.397c0.461,0,0.835-0.311,0.835-0.694v-1.754C23.955,28.364,23.581,28.054,23.12,28.054z"/><path fill="#009DE6" d="M29.193,28.054h-3.396c-0.461,0-0.834,0.31-0.834,0.694v1.754c0,0.384,0.373,0.694,0.834,0.694h3.396c0.461,0,0.836-0.311,0.836-0.694v-1.754C30.029,28.364,29.654,28.054,29.193,28.054z"/><linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="25.6528" y1="26.4976" x2="49.8345" y2="26.4976" gradientTransform="matrix(1 0 0 -1 0 56.8477)"><stop offset="0" style="stop-color:#8B878D"/><stop offset="0.5" style="stop-color:#F3F4F4"/><stop offset="0.5872" style="stop-color:#E5E5E6"/><stop offset="0.7546" style="stop-color:#C0BEC0"/><stop offset="0.9834" style="stop-color:#858085"/><stop offset="1" style="stop-color:#807B80"/></linearGradient><path fill-rule="evenodd" clip-rule="evenodd" fill="url(#SVGID_2_)" d="M46.377,25.5c-0.035,0.338-3.12,9.7-3.12,9.7H31.781l-0.295-9.7H46.377z"/><polygon fill="#009DE6" points="41.361,27.055 39.666,31.713 35.43,31.713 35.43,27.055"/><path fill="#009DE6" d="M45.914,27.027h-2.68l-1.764,4.799h2.893C44.897,30.191,45.509,28.313,45.914,27.027z"/><linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="0.3618" y1="34.9629" x2="56.0001" y2="34.9629"><stop offset="0" style="stop-color:#8B878D"/><stop offset="0.5" style="stop-color:#F3F4F4"/><stop offset="0.5872" style="stop-color:#E5E5E6"/><stop offset="0.7546" style="stop-color:#C0BEC0"/><stop offset="0.9834" style="stop-color:#858085"/><stop offset="1" style="stop-color:#807B80"/></linearGradient><path fill-rule="evenodd" clip-rule="evenodd" fill="url(#SVGID_3_)" d="M50.299,39.411c-0.164-0.312-3.741-8.897-3.741-8.897H9.162l-1.3,8.897H50.299z"/><path fill="#595757" d="M44.045,34.815h-5.559c-0.754,0-1.365,0.508-1.365,1.136v2.871c0,0.627,0.611,1.137,1.365,1.137h5.559c0.756,0,1.369-0.51,1.369-1.137v-2.871C45.414,35.323,44.801,34.815,44.045,34.815z"/><path fill="#595757" d="M31.326,34.815h-5.56c-0.753,0-1.365,0.508-1.365,1.136v2.871c0,0.627,0.612,1.137,1.365,1.137h5.56c0.754,0,1.367-0.51,1.367-1.137v-2.871C32.692,35.323,32.08,34.815,31.326,34.815z"/><path fill="#595757" d="M18.534,34.815h-5.56c-0.753,0-1.367,0.508-1.367,1.136v2.871c0,0.627,0.613,1.137,1.367,1.137h5.56c0.755,0,1.367-0.51,1.367-1.137v-2.871C19.901,35.323,19.289,34.815,18.534,34.815z"/><path fill-rule="evenodd" clip-rule="evenodd" fill="#868686" d="M49.682,37.514c-0.818,0.342-1.958,0.488-3.74,0.488c-2.775,0-31.381,0-37.926,0l-0.153,1.311h42.437C50.258,39.219,50.02,38.519,49.682,37.514z"/><g><g><path fill="#ECECED" d="M57.779,36.339h-8.906c-0.389,0-0.705-0.336-0.705-0.75s0.316-0.75,0.705-0.75h8.906c0.389,0,0.703,0.336,0.703,0.75S58.168,36.339,57.779,36.339z"/></g><g><path fill="#ECECED" d="M57.247,39.513c-0.389,0-0.704-0.336-0.704-0.75v-2.954c0-0.414,0.315-0.75,0.704-0.75s0.704,0.336,0.704,0.75v2.954C57.951,39.177,57.636,39.513,57.247,39.513z"/></g><g><path fill="#ECECED" d="M53.301,39.513c-0.389,0-0.704-0.336-0.704-0.75v-2.954c0-0.414,0.315-0.75,0.704-0.75s0.703,0.336,0.703,0.75v2.954C54.004,39.177,53.689,39.513,53.301,39.513z"/></g><g><path fill="#ECECED" d="M49.355,39.513c-0.387,0-0.703-0.336-0.703-0.75v-2.954c0-0.414,0.316-0.75,0.703-0.75c0.389,0,0.705,0.336,0.705,0.75v2.954C50.061,39.177,49.744,39.513,49.355,39.513z"/></g></g><g><g><path fill="#ECECED" d="M9.512,36.339H7.086c-0.389,0-0.704-0.336-0.704-0.75s0.315-0.75,0.704-0.75h2.426c0.389,0,0.704,0.336,0.704,0.75S9.901,36.339,9.512,36.339z"/></g><g><path fill="#ECECED" d="M7.571,39.513c-0.388,0-0.704-0.336-0.704-0.75v-2.954c0-0.414,0.315-0.75,0.704-0.75s0.704,0.336,0.704,0.75v2.954C8.275,39.177,7.959,39.513,7.571,39.513z"/></g></g><linearGradient id="SVGID_4_" gradientUnits="userSpaceOnUse" x1="32.0171" y1="31.3335" x2="32.0171" y2="48.782"><stop offset="0.2204" style="stop-color:#00528F"/><stop offset="0.4558" style="stop-color:#0F5087"/><stop offset="0.9056" style="stop-color:#364A73"/><stop offset="0.9946" style="stop-color:#3E496F"/></linearGradient><path fill="url(#SVGID_4_)" d="M58.174,37.973c-0.192-0.21-0.49-0.332-0.81-0.332l-12.98,0.003c-0.397,0.03-0.831,0.05-1.335,0.05H6.667c-0.562,0-1.017,0.379-1.017,0.847v5.776c0,0.109,0.024,0.219,0.076,0.32c2.336,4.749,3.262,4.749,3.818,4.749h39.537c0.163,0,0.325-0.033,0.47-0.097c0.256-0.111,6.296-2.816,8.799-10.582C58.432,38.453,58.364,38.18,58.174,37.973z"/></g><line fill-rule="evenodd" clip-rule="evenodd" fill="none" stroke="#2CA4DE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" x1="8.394" y1="40.364" x2="54.762" y2="40.364"/><g><path fill="#00528F" d="M46.113,25.956H31.719c-0.389,0-0.704-0.336-0.704-0.75s0.315-0.75,0.704-0.75h14.395c0.389,0,0.703,0.336,0.703,0.75S46.502,25.956,46.113,25.956z"/></g><g><path fill="#00528F" d="M30.989,27.057H11.675c-0.389,0-0.704-0.336-0.704-0.75s0.315-0.75,0.704-0.75h19.313c0.388,0,0.703,0.336,0.703,0.75S31.377,27.057,30.989,27.057z"/></g></g></g><line fill-rule="evenodd" clip-rule="evenodd" fill="none" stroke="#2CA4DE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" x1="2.601" y1="50.261" x2="61.101" y2="50.261"/></svg>'),
+              label: 'Ferry',     offset:   0, mirror: true,  naturallyEast: true  },
+  bike:     { code: '1F6B2', label: 'Bike',      offset:   0, mirror: true,  naturallyEast: false }
+};
+
+var CDN = 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji/color/svg/';
+
+function transportIcon(key) {
+  var t = TRANSPORT[key] || TRANSPORT['plane'];
+  return t.url ? t.url : (CDN + t.code + '.svg');
+}
+
+function transportLabel(key) {
+  var t = TRANSPORT[key];
+  return t ? t.label : key;
+}
+
+function transportOffset(key) {
+  var t = TRANSPORT[key];
+  return t ? t.offset : 0;
+}
+
+function transportMirror(key) {
+  var t = TRANSPORT[key];
+  return t ? t.mirror : false;
+}
+
+
+
+const geoCache = {};
+let geoTimers = {};
+
+// Resolved coordinates store
+const resolved = { from: null, to: null };
+
+function geocodeSearch(query, onSuccess, onError) {
+  if (geoCache[query]) { onSuccess(geoCache[query]); return; }
+  var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&q=' + encodeURIComponent(query);
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  xhr.setRequestHeader('Accept-Language', 'en');
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        geoCache[query] = data;
+        onSuccess(data);
+      } catch(e) { onError(e); }
+    } else { onError(new Error('Status ' + xhr.status)); }
+  };
+  xhr.onerror = onError;
+  xhr.send();
+}
+
+function buildDropdown(results, dropdownEl, inputEl, hintEl, side) {
+  dropdownEl.innerHTML = '';
+  if (!results.length) {
+    dropdownEl.innerHTML = '<div class="geo-loading">No results found</div>';
+    dropdownEl.classList.add('open');
+    return;
+  }
+  results.forEach(function(r) {
+    var parts = r.display_name.split(', ');
+    var main = parts.slice(0, 2).join(', ');
+    var sub  = parts.slice(2).join(', ');
+    var el = document.createElement('div');
+    el.className = 'geo-option';
+    el.innerHTML = '<div class="geo-main">' + main + '</div><div class="geo-sub">' + sub + '</div>';
+
+    function selectResult() {
+      resolved[side] = { lat: parseFloat(r.lat), lng: parseFloat(r.lon), label: r.display_name };
+      inputEl.value = parts.slice(0, 3).join(', ');
+      hintEl.textContent = '✓ ' + parseFloat(r.lat).toFixed(4) + ', ' + parseFloat(r.lon).toFixed(4);
+      hintEl.className = 'hint ok';
+      dropdownEl.classList.remove('open');
+    }
+
+    // touchstart for iOS, click for desktop
+    el.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      selectResult();
+    }, { passive: false });
+    el.addEventListener('click', selectResult);
+
+    dropdownEl.appendChild(el);
+  });
+  dropdownEl.classList.add('open');
+}
+
+function setupLocationInput(inputId, dropdownId, hintId, side) {
+  var input    = document.getElementById(inputId);
+  var dropdown = document.getElementById(dropdownId);
+  var hint     = document.getElementById(hintId);
+
+  input.addEventListener('input', function() {
+    resolved[side] = null;
+    hint.textContent = '';
+    hint.className = 'hint';
+    clearTimeout(geoTimers[side]);
+    var q = input.value.trim();
+    if (q.length < 3) { dropdown.classList.remove('open'); return; }
+    dropdown.innerHTML = '<div class="geo-loading">Searching…</div>';
+    dropdown.classList.add('open');
+    geoTimers[side] = setTimeout(function() {
+      geocodeSearch(q, function(results) {
+        buildDropdown(results, dropdown, input, hint, side);
+      }, function() {
+        dropdown.innerHTML = '<div class="geo-loading">Search failed — check connection</div>';
+      });
+    }, 400);
+  });
+
+  input.addEventListener('blur', function() {
+    setTimeout(function() { dropdown.classList.remove('open'); }, 200);
+  });
+  input.addEventListener('focus', function() {
+    if (dropdown.children.length) dropdown.classList.add('open');
+  });
+}
+
+setupLocationInput('f-from', 'from-dropdown', 'from-resolved', 'from');
+setupLocationInput('f-to',   'to-dropdown',   'to-resolved',   'to');
+
+// ─── ADD TRIP FORM ────────────────────────────────────────────────────────────
+document.getElementById('add-trip-btn').addEventListener('click', function() {
+  document.getElementById('sidebar-body').classList.add('adding');
+});
+document.getElementById('cancel-add-btn').addEventListener('click', function() {
+  document.getElementById('sidebar-body').classList.remove('adding');
+});
+
+document.getElementById('save-trip-btn').addEventListener('click', function() {
+  var name      = document.getElementById('f-name').value.trim();
+  var transport = document.getElementById('f-transport').value;
+  var date      = document.getElementById('f-date').value.trim();
+  var notes     = document.getElementById('f-notes').value.trim();
+  var fromLabel = document.getElementById('f-from').value.trim();
+  var toLabel   = document.getElementById('f-to').value.trim();
+
+  if (!name) { alert('Please enter a trip name.'); return; }
+  if (!resolved.from) { alert('Please search and select a From location from the dropdown.'); return; }
+  if (!resolved.to)   { alert('Please search and select a To location from the dropdown.'); return; }
+
+  var fc = [resolved.from.lat, resolved.from.lng];
+  var tc = [resolved.to.lat,   resolved.to.lng];
+
+  TRIPS.push({
+    name: name,
+    from: fromLabel, to: toLabel,
+    fromCoords: fc, toCoords: tc,
+    transport: transport, date: date, notes: notes,
+    type: classifyTrip(fc, tc)
+  });
+
+  ['f-name','f-from','f-to','f-date','f-notes'].forEach(function(id) {
+    document.getElementById(id).value = '';
+  });
+  ['from-resolved','to-resolved'].forEach(function(id) {
+    var el = document.getElementById(id);
+    el.textContent = ''; el.className = 'hint';
+  });
+  resolved.from = null; resolved.to = null;
+
+  document.getElementById('sidebar-body').classList.remove('adding');
+  renderTripList();
+});
+
+// ─── CSV EXPORT ───────────────────────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', function() {
+  var header = ['name','from','to','fromLat','fromLng','toLat','toLng','transport','date','notes','type'];
+  var rows = TRIPS.map(function(t) {
+    return [
+      t.name, t.from, t.to,
+      t.fromCoords[0], t.fromCoords[1],
+      t.toCoords[0],   t.toCoords[1],
+      t.transport, t.date,
+      (t.notes || '').replace(/"/g, '""'),
+      t.type || classifyTrip(t.fromCoords, t.toCoords)
+    ].map(function(v) { return '"' + v + '"'; }).join(',');
+  });
+
+  var csv = header.join(',') + '\n' + rows.join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'my-travels.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ─── CSV IMPORT ───────────────────────────────────────────────────────────────
+document.getElementById('import-btn').addEventListener('click', function() {
+  document.getElementById('import-file').click();
+});
+
+document.getElementById('import-file').addEventListener('change', function() {
+  var file = this.files[0];
+  if (!file) return;
+  var self = this;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var lines = e.target.result.trim().split('\n');
+      var headers = lines[0].split(',').map(function(h) { return h.trim().replace(/^"|"$/g, ''); });
+      function idx(h) { return headers.indexOf(h); }
+
+      var required = ['name','from','to','fromLat','fromLng','toLat','toLng','transport','date'];
+      var missing = required.filter(function(r) { return idx(r) === -1; });
+      if (missing.length) {
+        alert('CSV is missing columns: ' + missing.join(', '));
+        return;
+      }
+
+      function parseRow(line) {
+        var cols = [], cur = '', inQ = false;
+        for (var i = 0; i < line.length; i++) {
+          var ch = line[i];
+          if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; }
+          else if (ch === '"') { inQ = !inQ; }
+          else if (ch === ',' && !inQ) { cols.push(cur); cur = ''; }
+          else cur += ch;
+        }
+        cols.push(cur);
+        return cols;
+      }
+
+      var imported = [], errors = [];
+      lines.slice(1).forEach(function(line, i) {
+        if (!line.trim()) return;
+        var cols = parseRow(line);
+        function get(h) { return (cols[idx(h)] || '').trim(); }
+        var fromLat = parseFloat(get('fromLat'));
+        var fromLng = parseFloat(get('fromLng'));
+        var toLat   = parseFloat(get('toLat'));
+        var toLng   = parseFloat(get('toLng'));
+        if (isNaN(fromLat) || isNaN(fromLng) || isNaN(toLat) || isNaN(toLng)) {
+          errors.push('Row ' + (i+2) + ': invalid coordinates');
+          return;
+        }
+        var fc = [fromLat, fromLng];
+        var tc = [toLat, toLng];
+        imported.push({
+          name: get('name'), from: get('from'), to: get('to'),
+          fromCoords: fc, toCoords: tc,
+          transport: get('transport'), date: get('date'),
+          notes: get('notes'),
+          type: get('type') || classifyTrip(fc, tc)
+        });
+      });
+
+      if (errors.length) alert('Imported with warnings:\n' + errors.join('\n'));
+      if (!imported.length) { alert('No valid trips found in CSV.'); return; }
+      if (TRIPS.length > 0 && !confirm('Replace all ' + TRIPS.length + ' existing trip(s) with ' + imported.length + ' imported trip(s)?')) return;
+
+      TRIPS = imported;
+      renderTripList();
+      stopAnimation();
+      var allPts = [];
+      TRIPS.forEach(function(t) { allPts.push(t.fromCoords); allPts.push(t.toCoords); });
+      map.fitBounds(allPts, { padding: [40, sidebarOpen ? 320 : 40] });
+      alert('Imported ' + imported.length + ' trip(s) successfully!');
+    } catch(err) {
+      alert('Failed to parse CSV: ' + err.message);
+    }
+    self.value = '';
+  };
+  reader.readAsText(file);
+});
+
+// ─── THEME TOGGLE ─────────────────────────────────────────────────────────────
+let darkTile, lightTile;
+let isDark = true;
+
+function initTiles() {
+  darkTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© CartoDB © OpenStreetMap', maxZoom: 18
+  });
+  lightTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© CartoDB © OpenStreetMap', maxZoom: 18
+  });
+  darkTile.addTo(map);
+}
+
+function setTheme(dark) {
+  isDark = dark;
+  document.body.classList.toggle('light', !dark);
+  document.getElementById('theme-btn').textContent = dark ? '🌙' : '☀️';
+  if (dark) { map.removeLayer(lightTile); darkTile.addTo(map); }
+  else       { map.removeLayer(darkTile); lightTile.addTo(map); }
+}
+
+document.getElementById('theme-btn').addEventListener('click', function() {
+  setTheme(!isDark);
+});
+
+// ─── CENTRE ICON ──────────────────────────────────────────────────────────────
+var centreIcon = document.getElementById('centre-icon');
+var centreRing = document.getElementById('centre-ring');
+var currentOffset = 0;
+var currentMirror = false;
+var currentNaturallyEast = false;
+
+function setCentreIcon(transportKey) {
+  var t = TRANSPORT[transportKey] || TRANSPORT['plane'];
+  currentOffset = t.offset;
+  currentMirror = t.mirror || false;
+  currentNaturallyEast = t.naturallyEast || false;
+  centreIcon.innerHTML = '<img src="' + transportIcon(transportKey) + '" alt="' + transportKey + '">';
+}
+
+function showCentreIcon(show) {
+  if (show) {
+    centreIcon.classList.add('visible');
+    centreRing.classList.add('visible');
+  } else {
+    centreIcon.classList.remove('visible');
+    centreRing.classList.remove('visible');
+    centreIcon.style.transform = 'translate(-50%, -50%) scaleX(1)';
+  }
+}
+
+// ─── SIDEBAR TOGGLE ───────────────────────────────────────────────────────────
+const sidebar = document.getElementById('sidebar');
+const progressBar = document.getElementById('progress-bar');
+const toggleBtn = document.getElementById('toggle-sidebar-btn');
+let sidebarOpen = true;
+
+function setSidebarOpen(open) {
+  sidebarOpen = open;
+  sidebar.classList.toggle('collapsed', !open);
+  progressBar.style.right = open ? '280px' : '0';
+  toggleBtn.textContent = open ? '✕ Log' : '☰ Log';
+  map.invalidateSize();
+}
+
+toggleBtn.addEventListener('click', function() { setSidebarOpen(!sidebarOpen); });
+
+// On narrow screens, start collapsed
+if (window.innerWidth < 600) { setSidebarOpen(false); }
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+initTiles();
+renderTripList();
+
+// Show all waypoints at start
+TRIPS.forEach(function(trip, i) {
+  var isFirst = (i === 0);
+  L.circleMarker(trip.fromCoords, {
+    radius: 4, color: '#fff',
+    fillColor: isFirst ? '#43e97b' : '#6c63ff',
+    fillOpacity: 1, weight: 1.5, opacity: 0.8
+  }).addTo(map).bindTooltip(trip.from, { permanent: false, direction: 'top' });
+});
+
+// Last destination dot
+var last = TRIPS[TRIPS.length - 1];
+L.circleMarker(last.toCoords, {
+  radius: 4, color: '#fff', fillColor: '#ff6584',
+  fillOpacity: 1, weight: 1.5, opacity: 0.8
+}).addTo(map).bindTooltip(last.to, { permanent: false, direction: 'top' });
+
+// Fit map to all points — avoid flatMap for iOS compat
+var allPts = [];
+TRIPS.forEach(function(t) { allPts.push(t.fromCoords); allPts.push(t.toCoords); });
+map.fitBounds(allPts, { padding: [40, 320] });
+</script>
+</body>
+</html>
